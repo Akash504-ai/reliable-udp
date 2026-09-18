@@ -1,13 +1,32 @@
 import socket
 
+
+# --------------------------------------------------
+# Server configuration
+# --------------------------------------------------
+
 SERVER_HOST = "127.0.0.1"
 SERVER_PORT = 5000
 
 TIMEOUT = 2
+MAX_RETRIES = 5
 
-client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+# --------------------------------------------------
+# Create UDP socket
+# --------------------------------------------------
+
+client = socket.socket(
+    socket.AF_INET,
+    socket.SOCK_DGRAM
+)
 
 client.settimeout(TIMEOUT)
+
+
+# --------------------------------------------------
+# Messages to send
+# --------------------------------------------------
 
 messages = [
     "Hello",
@@ -15,37 +34,120 @@ messages = [
     "But we are making it reliable"
 ]
 
-for sequence_number, message in enumerate(messages, start=1):
 
-    packet = f"{sequence_number}|{message}"
+# --------------------------------------------------
+# Send packets reliably
+# --------------------------------------------------
 
-    while True:
+try:
 
-        print(f"Sending packet #{sequence_number}")
+    for sequence_number, message in enumerate(messages, start=1):
 
-        client.sendto(
-            packet.encode(),
-            (SERVER_HOST, SERVER_PORT)
-        )
+        packet = f"{sequence_number}|{message}"
 
-        try:
+        retries = 0
 
-            data, address = client.recvfrom(1024)
+        while retries < MAX_RETRIES:
 
-            response = data.decode()
+            print(
+                f"📤 Sending packet #{sequence_number}: "
+                f"{message}"
+            )
 
-            ack_type, ack_number = response.split("|")
+            client.sendto(
+                packet.encode(),
+                (SERVER_HOST, SERVER_PORT)
+            )
 
-            ack_number = int(ack_number)
+            try:
 
-            if ack_type == "ACK" and ack_number == sequence_number:
+                # ----------------------------------
+                # Wait for ACK
+                # ----------------------------------
 
-                print(f"ACK received for #{sequence_number}\n")
+                data, address = client.recvfrom(1024)
 
-                break
+                response = data.decode()
 
-        except socket.timeout:
+                ack_type, ack_number = response.split("|", 1)
 
-            print(f"Timeout! Resending packet #{sequence_number}\n")
+                ack_number = int(ack_number)
 
-client.close()
+
+                # ----------------------------------
+                # Check ACK
+                # ----------------------------------
+
+                if (
+                    ack_type == "ACK"
+                    and ack_number == sequence_number
+                ):
+
+                    print(
+                        f"✅ ACK received for "
+                        f"#{sequence_number}\n"
+                    )
+
+                    break
+
+                else:
+
+                    print(
+                        f"⚠️ Unexpected ACK received: "
+                        f"{response}"
+                    )
+
+            except socket.timeout:
+
+                retries += 1
+
+                print(
+                    f"⏰ Timeout for packet "
+                    f"#{sequence_number}"
+                )
+
+                print(
+                    f"🔄 Retrying "
+                    f"({retries}/{MAX_RETRIES})...\n"
+                )
+
+
+        # ------------------------------------------
+        # Maximum retries reached
+        # ------------------------------------------
+
+        if retries == MAX_RETRIES:
+
+            print(
+                f"❌ Failed to deliver "
+                f"packet #{sequence_number}"
+            )
+
+            print(
+                "Maximum retries reached."
+            )
+
+            break
+
+
+    print("Transfer completed.")
+
+
+# --------------------------------------------------
+# Handle Ctrl + C
+# --------------------------------------------------
+
+except KeyboardInterrupt:
+
+    print("\nClient stopped by user.")
+
+
+# --------------------------------------------------
+# Close socket
+# --------------------------------------------------
+
+finally:
+
+    client.close()
+
+    print("Socket closed.")
