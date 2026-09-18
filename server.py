@@ -9,10 +9,6 @@ PACKET_LOSS_RATE = 0.20
 ACK_LOSS_RATE = 0.30
 
 
-# --------------------------------------------------
-# Create UDP socket
-# --------------------------------------------------
-
 server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 server.bind((HOST, PORT))
@@ -26,29 +22,16 @@ print(f"ACK loss simulation    : {ACK_LOSS_RATE * 100:.0f}%")
 print("Waiting for packets...\n")
 
 
-# --------------------------------------------------
-# Keep track of received packets
-# --------------------------------------------------
-
 received_packets = set()
 
 # The next packet we expect
 expected_sequence_number = 1
-
-
-# --------------------------------------------------
-# Main server loop
-# --------------------------------------------------
 
 try:
 
     while True:
 
         data, address = server.recvfrom(1024)
-
-        # ------------------------------------------
-        # Simulate packet loss
-        # ------------------------------------------
 
         if random.random() < PACKET_LOSS_RATE:
 
@@ -58,20 +41,16 @@ try:
                 sequence_number = int(message.split("|", 1)[0])
 
                 print(
-                    f"💀 Packet #{sequence_number} "
+                    f"Packet #{sequence_number} "
                     f"dropped by network simulation"
                 )
 
             except (ValueError, UnicodeDecodeError):
 
-                print("💀 Invalid packet dropped")
+                print("Invalid packet dropped")
 
             continue
 
-
-        # ------------------------------------------
-        # Decode packet
-        # ------------------------------------------
 
         try:
 
@@ -87,44 +66,33 @@ try:
             continue
 
 
-        print(f"📦 Packet #{sequence_number} received")
+        print(f"Packet #{sequence_number} received")
 
-
-        # ------------------------------------------
-        # Duplicate packet
-        # ------------------------------------------
 
         if sequence_number in received_packets:
 
             print(
-                f"🔄 Duplicate packet detected: "
+                f"Duplicate packet detected: "
                 f"#{sequence_number}"
             )
 
-
-        # ------------------------------------------
-        # Expected packet
-        # ------------------------------------------
 
         elif sequence_number == expected_sequence_number:
 
             received_packets.add(sequence_number)
 
-            print(f"✅ Processing #{sequence_number}: {content}")
+            print(f"Processing #{sequence_number}: {content}")
 
             expected_sequence_number += 1
 
 
-        # ------------------------------------------
-        # Out-of-order packet
-        # ------------------------------------------
 
         elif sequence_number > expected_sequence_number:
 
             received_packets.add(sequence_number)
 
             print(
-                f"⚠️ Out-of-order packet #{sequence_number}"
+                f"Out-of-order packet #{sequence_number}"
             )
 
             print(
@@ -136,37 +104,25 @@ try:
             )
 
 
-        # ------------------------------------------
-        # Old packet
-        # ------------------------------------------
-
         else:
 
             received_packets.add(sequence_number)
 
             print(
-                f"⚠️ Old packet received: "
+                f"Old packet received: "
                 f"#{sequence_number}"
             )
 
 
-        # ------------------------------------------
-        # Simulate ACK loss
-        # ------------------------------------------
-
         if random.random() < ACK_LOSS_RATE:
 
             print(
-                f"💀 ACK for #{sequence_number} "
+                f"ACK for #{sequence_number} "
                 f"dropped by network simulation\n"
             )
 
             continue
 
-
-        # ------------------------------------------
-        # Send ACK
-        # ------------------------------------------
 
         ack = f"ACK|{sequence_number}"
 
@@ -176,13 +132,9 @@ try:
         )
 
         print(
-            f"📨 ACK sent for #{sequence_number}\n"
+            f"ACK sent for #{sequence_number}\n"
         )
 
-
-# --------------------------------------------------
-# Graceful shutdown
-# --------------------------------------------------
 
 except KeyboardInterrupt:
 

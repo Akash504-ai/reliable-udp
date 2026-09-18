@@ -1,20 +1,11 @@
 import socket
 
 
-# --------------------------------------------------
-# Server configuration
-# --------------------------------------------------
-
 SERVER_HOST = "127.0.0.1"
 SERVER_PORT = 5000
 
 TIMEOUT = 2
 MAX_RETRIES = 5
-
-
-# --------------------------------------------------
-# Create UDP socket
-# --------------------------------------------------
 
 client = socket.socket(
     socket.AF_INET,
@@ -23,21 +14,11 @@ client = socket.socket(
 
 client.settimeout(TIMEOUT)
 
-
-# --------------------------------------------------
-# Messages to send
-# --------------------------------------------------
-
 messages = [
     "Hello",
     "This is UDP",
     "But we are making it reliable"
 ]
-
-
-# --------------------------------------------------
-# Send packets reliably
-# --------------------------------------------------
 
 try:
 
@@ -50,7 +31,7 @@ try:
         while retries < MAX_RETRIES:
 
             print(
-                f"📤 Sending packet #{sequence_number}: "
+                f"Sending packet #{sequence_number}: "
                 f"{message}"
             )
 
@@ -61,10 +42,6 @@ try:
 
             try:
 
-                # ----------------------------------
-                # Wait for ACK
-                # ----------------------------------
-
                 data, address = client.recvfrom(1024)
 
                 response = data.decode()
@@ -73,18 +50,13 @@ try:
 
                 ack_number = int(ack_number)
 
-
-                # ----------------------------------
-                # Check ACK
-                # ----------------------------------
-
                 if (
                     ack_type == "ACK"
                     and ack_number == sequence_number
                 ):
 
                     print(
-                        f"✅ ACK received for "
+                        f"ACK received for "
                         f"#{sequence_number}\n"
                     )
 
@@ -93,7 +65,7 @@ try:
                 else:
 
                     print(
-                        f"⚠️ Unexpected ACK received: "
+                        f"Unexpected ACK received: "
                         f"{response}"
                     )
 
@@ -102,24 +74,19 @@ try:
                 retries += 1
 
                 print(
-                    f"⏰ Timeout for packet "
+                    f"Timeout for packet "
                     f"#{sequence_number}"
                 )
 
                 print(
-                    f"🔄 Retrying "
+                    f"Retrying "
                     f"({retries}/{MAX_RETRIES})...\n"
                 )
-
-
-        # ------------------------------------------
-        # Maximum retries reached
-        # ------------------------------------------
 
         if retries == MAX_RETRIES:
 
             print(
-                f"❌ Failed to deliver "
+                f"Failed to deliver "
                 f"packet #{sequence_number}"
             )
 
@@ -132,19 +99,10 @@ try:
 
     print("Transfer completed.")
 
-
-# --------------------------------------------------
-# Handle Ctrl + C
-# --------------------------------------------------
-
 except KeyboardInterrupt:
 
     print("\nClient stopped by user.")
 
-
-# --------------------------------------------------
-# Close socket
-# --------------------------------------------------
 
 finally:
 
