@@ -1,98 +1,124 @@
+<p align="center">
+  <img width="1200" height="622" alt="Reliable UDP" src="https://github.com/user-attachments/assets/cef33695-f1be-4380-9e90-04a26e453f2c" />
+</p>
+
+<p align="center">
+  <a href="https://github.com/<your-username>/reliable-udp/stargazers">
+    <img alt="GitHub stars" src="https://img.shields.io/github/stars/Akash504-ai/reliable-udp?style=flat-square" />
+  </a>
+  <a href="https://github.com/<your-username>/reliable-udp">
+    <img alt="GitHub repo size" src="https://img.shields.io/github/repo-size/Akash504-ai/reliable-udp?style=flat-square" />
+  </a>
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.x-blue?style=flat-square&logo=python&logoColor=white" />
+  <img alt="Protocol" src="https://img.shields.io/badge/Protocol-UDP-orange?style=flat-square" />
+  <img alt="License" src="https://img.shields.io/badge/License-MIT-green?style=flat-square" />
+</p>
+
 # Reliable UDP
 
 A small educational implementation of **reliable data delivery on top of UDP** using Python sockets.
 
-UDP is fast and lightweight, but it does not guarantee delivery, ordering, or retransmission.
+UDP provides fast, connectionless datagram communication, but it does not guarantee delivery, ordering, or retransmission.
 
-So instead of just reading about these concepts, I built a small reliability layer on top of UDP to understand **how reliable transport mechanisms work internally**.
+This project explores what happens when we build some of those reliability mechanisms ourselves.
 
----
+> **What if UDP loses a packet or an ACK? Can we build a basic reliability layer on top of it?**
 
-## Why I Built This
-
-While learning Computer Networks, I kept seeing concepts such as:
-
-- Sequence numbers
-- Acknowledgements
-- Timeouts
-- Retransmission
-- Duplicate detection
-- Packet ordering
-- Packet loss
-
-Instead of treating them as just theory, I wanted to see what would happen if I had to implement some of these mechanisms myself.
-
-This project is a simplified experiment:
-
-> **What if UDP loses packets or ACKs? Can we build basic reliability ourselves?**
+The implementation uses sequence numbers, acknowledgements, timeouts, retransmissions, duplicate detection, and simulated packet loss to demonstrate the core ideas behind reliable transport protocols.
 
 ---
 
-## The Problem with UDP
+## Features
 
-UDP provides a simple datagram-based communication mechanism, but it does not guarantee:
+* Sequence numbers for identifying packets
+* ACK-based delivery confirmation
+* Configurable timeout handling
+* Automatic packet retransmission
+* Maximum retry limit
+* Duplicate packet detection
+* Basic out-of-order detection
+* Simulated packet loss
+* Simulated ACK loss
+* Simple packet tracking
+* Zero external dependencies
 
-- Packet delivery
-- Packet ordering
-- Retransmission
-- Duplicate suppression
-- Reliable acknowledgement
+---
 
-For example, a sender may transmit:
+## How It Works
+
+The project consists of two components:
 
 ```text
-Packet #1
-Packet #2
-Packet #3
+┌──────────────┐                       ┌──────────────┐
+│              │       UDP Packet      │              │
+│    Client    │ ───────────────────>  │    Server    │
+│              │                       │              │
+│              │       UDP ACK         │              │
+│              │ <───────────────────  │              │
+└──────────────┘                       └──────────────┘
+       │                                      │
+       │                                      │
+       ▼                                      ▼
+ Sequence Numbers                       Packet Tracking
+ Timeouts                                Duplicate Detection
+ Retransmission                          ACK Generation
+ Retry Limit                             Loss Simulation
 ```
 
-The receiver could potentially see:
+The underlying transport is still **UDP**.
+
+The reliability mechanisms are implemented at the **application level**.
+
+---
+
+# Reliability Flow
+
+For each packet, the client follows this basic process:
 
 ```text
-Packet #1
-Packet #3
+             ┌───────────────┐
+             │ Create Packet │
+             └───────┬───────┘
+                     │
+                     ▼
+             ┌───────────────┐
+             │   Send UDP    │
+             │    Packet     │
+             └───────┬───────┘
+                     │
+                     ▼
+             ┌───────────────┐
+             │   Wait for    │
+             │      ACK      │
+             └───────┬───────┘
+                     │
+              ┌──────┴──────┐
+              │             │
+           ACK received   Timeout
+              │             │
+              ▼             ▼
+           Next Packet   Retry Packet
+                            │
+                            ▼
+                       Retry Limit?
+                         /      \
+                       No        Yes
+                       │          │
+                       ▼          ▼
+                    Resend      Stop
 ```
 
-because Packet #2 was lost.
-
-Or the packet may arrive successfully, but the ACK sent back to the sender may be lost.
-
-That creates a problem:
-
-> How does the sender know whether the packet actually reached the receiver?
-
-This project explores a basic solution.
+This creates a simple **stop-and-wait reliability mechanism**.
 
 ---
 
-# What I Built
+# Packet Format
 
-I created a small reliability layer on top of UDP using Python's built-in `socket` module.
+Packets use a deliberately simple format:
 
-The implementation includes:
-
-- Sequence numbers
-- Acknowledgements (ACKs)
-- Timeouts
-- Retransmission
-- Maximum retry attempts
-- Duplicate packet detection
-- Basic out-of-order detection
-- Simulated packet loss
-- Simulated ACK loss
-- Basic packet tracking
-
-The underlying communication is still UDP.
-
-The reliability is handled by our application-level logic.
-
----
-
-# How It Works
-
-## 1. Sequence Numbers
-
-Every packet contains a sequence number.
+```text
+sequence_number|message
+```
 
 For example:
 
@@ -102,19 +128,11 @@ For example:
 3|But we are making it reliable
 ```
 
-The sequence number allows the receiver to identify individual packets.
+Acknowledgements use:
 
-It can also help detect:
-
-- Missing packets
-- Duplicate packets
-- Out-of-order packets
-
----
-
-## 2. Acknowledgements
-
-After receiving a packet, the server sends an acknowledgement.
+```text
+ACK|sequence_number
+```
 
 For example:
 
@@ -122,182 +140,264 @@ For example:
 ACK|1
 ```
 
-This tells the client:
-
-> Packet #1 was received.
-
-The client waits for the ACK before moving to the next packet.
+The simplicity of the format makes the reliability logic easier to understand.
 
 ---
 
-## 3. Timeout
+# Core Concepts
 
-The client does not wait forever for an ACK.
+## Sequence Numbers
 
-A timeout is configured:
+Every packet receives a unique sequence number.
+
+```text
+1|Hello
+2|This is UDP
+3|Reliable delivery
+```
+
+Sequence numbers allow the receiver to identify:
+
+* Individual packets
+* Duplicate packets
+* Missing packets
+* Unexpected packet order
+
+---
+
+## Acknowledgements
+
+After receiving a packet, the server sends an acknowledgement:
+
+```text
+ACK|1
+```
+
+The client uses this ACK to determine whether it can move on to the next packet.
+
+Without an acknowledgement, the sender cannot distinguish between:
+
+```text
+Packet was lost
+```
+
+and:
+
+```text
+Packet arrived, but the ACK was lost
+```
+
+That is where timeouts become important.
+
+---
+
+## Timeouts
+
+The client waits for an ACK for a limited amount of time.
 
 ```python
 TIMEOUT = 2
 ```
 
-If the ACK does not arrive within the timeout period, the client assumes that something went wrong.
+If no ACK arrives within that period, the client treats the attempt as unsuccessful and retransmits the packet.
 
-Possible reasons include:
+Possible causes include:
 
-- The packet was lost
-- The ACK was lost
-- The network delayed the packet
-- The server did not respond
-
----
-
-## 4. Retransmission
-
-When a timeout occurs, the client sends the packet again.
-
-Conceptually:
-
-```text
-Send Packet #2
-        ↓
-     Wait
-        ↓
-   No ACK received
-        ↓
-     Timeout
-        ↓
- Resend Packet #2
-```
-
-This is one of the fundamental ideas behind reliable data transfer.
+* Packet loss
+* ACK loss
+* Network delay
+* Server failure
 
 ---
 
-## 5. Duplicate Detection
+## Retransmission
 
-Retransmission creates another problem.
-
-Suppose the server successfully receives Packet #2.
-
-It sends:
+When a timeout occurs, the client sends the same packet again.
 
 ```text
-ACK|2
+Client                         Server
+  │                              │
+  │──── Packet #2 ──────────────>│
+  │                              │
+  │         ACK lost             │
+  │                              │
+  │       Timeout                │
+  │                              │
+  │──── Packet #2 ──────────────>│
+  │                              │
+  │<──────── ACK #2 ─────────────│
+  │                              │
 ```
 
-But the ACK gets lost.
+This is one of the fundamental mechanisms used to provide reliable delivery.
 
-The client does not know that Packet #2 was already received, so it retransmits Packet #2.
+---
 
-The server receives Packet #2 again.
+## Duplicate Detection
 
-Our server keeps track of received sequence numbers:
+Retransmission introduces another problem.
+
+Consider:
+
+```text
+Client                    Server
+  │                         │
+  │───── Packet #2 ────────>│
+  │                         │
+  │<──── ACK #2 ────────────│
+  X
+ ACK lost
+  │                         │
+  │───── Packet #2 ────────>│
+  │                         │
+```
+
+The server has already processed Packet #2.
+
+The retransmitted packet must therefore be recognized as a duplicate.
+
+The server keeps track of received sequence numbers:
 
 ```python
 received_packets = set()
 ```
 
-If the sequence number already exists in the set, the server identifies the packet as a duplicate.
-
-Example:
-
-```text
-Duplicate packet detected: #2
-```
-
-The server can then send the ACK again.
+If the sequence number is already present, the packet is treated as a duplicate and the ACK can be sent again.
 
 ---
 
-## 6. Simulated Packet Loss
+## Out-of-Order Detection
 
-Real networks can lose packets, but reproducing unpredictable network behavior locally can be difficult.
+UDP does not guarantee packet ordering.
 
-So the server includes a simple packet-loss simulation.
+For example, packets could arrive as:
 
-For example:
+```text
+1
+3
+2
+```
+
+The server tracks the expected sequence number and can identify packets that arrive unexpectedly.
+
+This implementation focuses on **detecting** out-of-order packets rather than implementing a complete packet-reordering buffer.
+
+---
+
+# Simulated Packet Loss
+
+Testing reliability requires failure scenarios.
+
+The server therefore includes configurable packet-loss simulation.
 
 ```python
 PACKET_LOSS_RATE = 0.20
 ```
 
-This means the program randomly drops approximately 20% of incoming packets.
+A value of `0.20` represents approximately **20% simulated packet loss**.
 
-This allows the reliability mechanism to be tested locally.
+For example:
+
+```python
+PACKET_LOSS_RATE = 0.50
+```
+
+simulates approximately 50% packet loss.
+
+This makes it possible to observe retransmission behavior without requiring a real unreliable network.
 
 ---
 
-## 7. Simulated ACK Loss
+# Simulated ACK Loss
 
-The server can also randomly drop ACKs:
+The server can also simulate lost acknowledgements:
 
 ```python
 ACK_LOSS_RATE = 0.30
 ```
 
-This is useful because a packet can reach the server successfully while its ACK never reaches the client.
+This demonstrates an important scenario:
 
-The client should then:
+```text
+Packet arrives successfully
+        ↓
+Server sends ACK
+        ↓
+ACK is lost
+        ↓
+Client waits
+        ↓
+Timeout
+        ↓
+Client retransmits
+        ↓
+Server detects duplicate
+        ↓
+Server sends ACK again
+```
 
-1. Wait for the ACK
-2. Hit the timeout
-3. Retransmit the packet
-4. Receive another ACK
-
-This demonstrates why acknowledgements alone are not enough without timeout and retransmission logic.
+This shows why reliable delivery requires more than simply sending an ACK.
 
 ---
 
 # Example
 
-A normal transfer might look like:
+### Normal transfer
 
 ```text
-Client
-  |
-  | Packet #1
-  v
-Server
-  |
-  | ACK #1
-  v
-Client
+Client                         Server
+  │                              │
+  │──── Packet #1 ──────────────>│
+  │                              │
+  │<──────── ACK #1 ─────────────│
+  │                              │
+  │──── Packet #2 ──────────────>│
+  │                              │
+  │<──────── ACK #2 ─────────────│
+  │                              │
+  │──── Packet #3 ──────────────>│
+  │                              │
+  │<──────── ACK #3 ─────────────│
+  │                              │
 ```
 
-When an ACK is lost:
+### Transfer with packet loss
 
 ```text
-Client
-  |
-  | Packet #2
-  v
-Server
-  |
-  | ACK #2
-  X
-  |
-  | ACK lost
-  |
-Client
-  |
-  | Timeout
-  |
-  | Retransmit #2
-  v
-Server
-  |
-  | Duplicate detected
-  |
-  | ACK #2
-  v
-Client
+Client                         Server
+  │                              │
+  │──── Packet #2 ──────────────>│
+  X                              │
+ Packet lost                     │
+  │                              │
+  │       Timeout                │
+  │                              │
+  │──── Packet #2 ──────────────>│
+  │                              │
+  │<──────── ACK #2 ─────────────│
+  │                              │
 ```
 
-The important part is that the application does not simply assume:
+### Transfer with ACK loss
 
-> "I sent the packet, therefore it arrived."
-
-Instead, it uses acknowledgements and retransmission to increase reliability.
+```text
+Client                         Server
+  │                              │
+  │──── Packet #2 ──────────────>│
+  │                              │
+  │<──────── ACK #2 ─────────────│
+  X                              │
+ ACK lost                        │
+  │                              │
+  │       Timeout                │
+  │                              │
+  │──── Packet #2 ──────────────>│
+  │                              │
+  │                     Duplicate detected
+  │                              │
+  │<──────── ACK #2 ─────────────│
+  │                              │
+```
 
 ---
 
@@ -314,78 +414,72 @@ reliable-udp/
 
 ### `client.py`
 
-Responsible for:
+Handles:
 
-- Creating the UDP socket
-- Creating packets
-- Adding sequence numbers
-- Sending packets
-- Waiting for ACKs
-- Handling timeouts
-- Retransmitting packets
-- Limiting retry attempts
+* UDP socket creation
+* Packet creation
+* Sequence numbers
+* Packet transmission
+* ACK reception
+* Timeout handling
+* Retransmission
+* Retry limits
 
 ### `server.py`
 
-Responsible for:
+Handles:
 
-- Creating the UDP socket
-- Receiving packets
-- Extracting sequence numbers
-- Detecting duplicates
-- Detecting out-of-order packets
-- Simulating packet loss
-- Simulating ACK loss
-- Sending ACKs
+* UDP socket creation
+* Packet reception
+* Sequence number extraction
+* Duplicate detection
+* Out-of-order detection
+* Packet-loss simulation
+* ACK-loss simulation
+* ACK transmission
 
 ---
 
 # Requirements
 
-This project uses only Python's standard library.
+The project uses only Python's standard library.
 
-No external Python packages are required.
+No external packages are required.
 
-You need:
+### Requirements
 
-- Python 3.x
+* Python 3.x
+* A terminal capable of running two processes
 
-The project uses built-in modules such as:
+The implementation primarily uses:
 
 ```python
 socket
 random
 ```
 
-Therefore, there is no `requirements.txt` file.
+Therefore, there is no `requirements.txt`.
 
 ---
 
-# How to Run
+# Getting Started
 
 ## 1. Clone the repository
 
 ```bash
 git clone https://github.com/<your-username>/reliable-udp.git
-```
-
-Move into the project:
-
-```bash
 cd reliable-udp
 ```
 
----
-
 ## 2. Start the server
 
-Open one terminal and run:
+Open a terminal and run:
 
 ```bash
 python server.py
 ```
 
-You should see something similar to:
+Example:
 
 ```text
 ==================================================
@@ -397,19 +491,17 @@ ACK loss simulation    : 30%
 Waiting for packets...
 ```
 
-Keep this terminal running.
-
----
+Keep the server running.
 
 ## 3. Start the client
 
-Open another terminal in the same directory:
+Open a second terminal:
 
 ```bash
 python client.py
 ```
 
-Example output:
+Example:
 
 ```text
 📤 Sending packet #1: Hello
@@ -429,284 +521,242 @@ Transfer completed.
 Socket closed.
 ```
 
-The exact output will vary because packet and ACK loss are simulated randomly.
+Because packet and ACK loss are simulated randomly, your output will vary between runs.
 
 ---
 
 # Configuration
 
-The loss rates can be changed in `server.py`.
+The reliability behavior can be adjusted directly in the source files.
 
 ### Packet loss
+
+In `server.py`:
 
 ```python
 PACKET_LOSS_RATE = 0.20
 ```
 
-For example:
-
-```python
-PACKET_LOSS_RATE = 0.50
-```
-
-would simulate approximately 50% packet loss.
-
 ### ACK loss
+
+In `server.py`:
 
 ```python
 ACK_LOSS_RATE = 0.30
 ```
 
-For example:
+### Timeout
 
-```python
-ACK_LOSS_RATE = 0.50
-```
-
-would simulate approximately 50% ACK loss.
-
-### Client timeout
-
-The client uses:
+In `client.py`:
 
 ```python
 TIMEOUT = 2
 ```
 
-This means it waits approximately 2 seconds for an ACK before retrying.
-
 ### Maximum retries
 
-The client also limits retransmissions:
+In `client.py`:
 
 ```python
 MAX_RETRIES = 5
 ```
 
-If the ACK still does not arrive after the maximum number of attempts, the client stops trying.
+Increasing the loss rates is a simple way to make the reliability behavior easier to observe.
 
 ---
 
-# What This Project Demonstrates
+# What This Demonstrates
 
-This project helped me understand that reliable communication is not one single feature.
+The project connects several Computer Networks concepts into one working experiment.
 
-It is a combination of mechanisms working together.
+| Mechanism              | Purpose                          |
+| ---------------------- | -------------------------------- |
+| Sequence numbers       | Identify individual packets      |
+| ACKs                   | Confirm packet reception         |
+| Timeouts               | Detect missing responses         |
+| Retransmission         | Recover from packet/ACK loss     |
+| Retry limit            | Prevent infinite retransmission  |
+| Duplicate detection    | Recognize retransmitted packets  |
+| Out-of-order detection | Identify unexpected packet order |
+| Loss simulation        | Test reliability under failure   |
 
-### Sequence numbers
+The important idea is that **reliability is not one mechanism**.
 
-Help identify individual packets.
-
-### ACKs
-
-Tell the sender that a packet was received.
-
-### Timeouts
-
-Prevent the sender from waiting forever.
-
-### Retransmission
-
-Allows lost packets to be sent again.
-
-### Duplicate detection
-
-Prevents retransmitted packets from being treated as completely new packets.
-
-### Out-of-order detection
-
-Allows the receiver to identify packets arriving in an unexpected order.
-
-Together, these mechanisms create a basic form of reliable data transfer.
+It emerges from several mechanisms working together.
 
 ---
 
-# What This Is Not
+# UDP vs Reliable UDP vs TCP
 
-This project is **not a replacement for TCP**.
+| Feature                | UDP |    This Project | TCP |
+| ---------------------- | --: | --------------: | --: |
+| Datagram communication |   ✓ |               ✓ |   — |
+| Sequence numbers       |   — |               ✓ |   ✓ |
+| ACKs                   |   — |               ✓ |   ✓ |
+| Retransmission         |   — |               ✓ |   ✓ |
+| Timeout                |   — |               ✓ |   ✓ |
+| Duplicate handling     |   — |           Basic |   ✓ |
+| Ordered delivery       |   — | Basic detection |   ✓ |
+| Flow control           |   — |               — |   ✓ |
+| Congestion control     |   — |               — |   ✓ |
+| Connection management  |   — |               — |   ✓ |
+| Sliding window         |   — |               — |   ✓ |
+| Selective ACK          |   — |               — |   ✓ |
 
-It is also not a production-ready transport protocol.
+**This project is not intended to recreate TCP.**
 
-Real transport protocols handle many additional problems, including:
-
-- Flow control
-- Congestion control
-- RTT estimation
-- Sophisticated retransmission strategies
-- Selective acknowledgements
-- Packet corruption
-- Connection management
-- Efficient buffering
-- Network congestion
-- Advanced loss recovery
-
-This project intentionally keeps things small so that the core reliability concepts are easy to understand.
-
----
-
-# TCP vs This Project
-
-| Feature | UDP | This Project | TCP |
-|---|---|---|---|
-| Sequence numbers | No guarantee | Yes | Yes |
-| ACKs | No | Yes | Yes |
-| Retransmission | No | Yes | Yes |
-| Timeout | No | Yes | Yes |
-| Duplicate detection | No guarantee | Basic | Yes |
-| Ordered delivery | No guarantee | Basic detection | Yes |
-| Flow control | No | No | Yes |
-| Congestion control | No | No | Yes |
-| Connection management | No | No | Yes |
-
-The goal is not to recreate TCP.
-
-The goal is to understand **why mechanisms such as sequence numbers, ACKs, timeouts, and retransmissions exist in reliable transport protocols.**
+Instead, it demonstrates why several mechanisms are necessary when reliable delivery is required.
 
 ---
 
 # Limitations
 
-This implementation intentionally has several limitations.
+This is intentionally a small educational implementation.
 
-### No true sliding window
+It does **not** provide the guarantees or sophistication of a production transport protocol.
 
-The current client waits for an ACK before proceeding to the next packet.
+### Stop-and-wait only
 
-This is simpler than a real sliding-window implementation.
+The client waits for an ACK before sending the next packet.
+
+There is no true sliding-window implementation.
 
 ### Basic out-of-order handling
 
-The server can detect an out-of-order packet, but it does not implement a complete reordering and delivery mechanism.
+Out-of-order packets can be detected, but there is no complete buffering and reordering system.
+
+### No flow control
+
+The sender does not dynamically adapt to receiver capacity.
 
 ### No congestion control
 
-The implementation does not dynamically adjust transmission based on network congestion.
+The implementation does not react to network congestion.
 
 ### Fixed timeout
 
-The timeout is currently manually configured instead of being calculated from measured network conditions.
+The timeout is manually configured rather than calculated from measured RTT.
 
 ### Simplified packet format
 
-Packets use a simple string format:
+Packets are represented as:
 
 ```text
 sequence_number|message
 ```
 
-A production protocol would use a more robust packet structure.
+A production protocol would require a more robust packet format.
+
+### No corruption detection
+
+The project simulates packet loss, but does not currently simulate corrupted packets or implement checksums.
 
 ---
 
-# Possible Improvements
+# Future Improvements
 
-There are several things that could be added in future versions.
+Possible extensions include:
 
-- [ ] Implement a real sliding window
-- [ ] Implement packet buffering and reordering
-- [ ] Add flow control
-- [ ] Add congestion control
-- [ ] Add RTT measurement
-- [ ] Calculate adaptive retransmission timeouts
-- [ ] Implement selective acknowledgements
-- [ ] Add packet corruption simulation
-- [ ] Add checksums
-- [ ] Implement connection establishment
-- [ ] Implement connection termination
-- [ ] Improve packet format
-- [ ] Add automated tests
-- [ ] Add performance measurements
+* [ ] Sliding-window protocol
+* [ ] Packet buffering and reordering
+* [ ] Flow control
+* [ ] Congestion control
+* [ ] RTT measurement
+* [ ] Adaptive retransmission timeout
+* [ ] Selective acknowledgements
+* [ ] Packet corruption simulation
+* [ ] Checksums
+* [ ] Connection establishment
+* [ ] Connection termination
+* [ ] Structured packet format
+* [ ] Automated tests
+* [ ] Performance benchmarks
+* [ ] Throughput and packet-loss visualization
+
+---
+
+# Learning Outcomes
+
+Building this project helped connect theoretical Computer Networks concepts with an actual implementation.
+
+Instead of only memorizing definitions, I was able to experiment with:
+
+* UDP socket communication
+* Sequence numbers
+* Acknowledgements
+* Timeouts
+* Retransmission
+* Packet loss
+* ACK loss
+* Duplicate packets
+* Out-of-order delivery
+* Stop-and-wait reliability
+
+The most useful part was intentionally introducing failures and observing how the protocol responds.
 
 ---
 
 # Key Takeaway
 
-The biggest thing I learned from this project was that **reliability is a collection of mechanisms**, not a single feature.
+UDP gives applications a lightweight way to exchange datagrams, but it does not provide the reliability guarantees associated with TCP.
 
-UDP gives us a simple way to send datagrams.
+This project demonstrates how an application can add some basic reliability mechanisms:
 
-Everything else has to be handled by the application if we want additional guarantees.
-
-Building a small version made concepts like:
-
-- Sequence numbers
-- ACKs
-- Timeouts
-- Retransmissions
-- Duplicate detection
-
-much easier to understand than simply memorizing their definitions.
-
----
-
-# Why This Was Interesting
-
-The interesting part wasn't writing:
-
-```python
-socket.sendto()
+```text
+UDP
+ │
+ ├── Sequence Numbers
+ ├── ACKs
+ ├── Timeouts
+ ├── Retransmission
+ ├── Duplicate Detection
+ └── Retry Limits
+ │
+ ▼
+Basic Reliable Data Transfer
 ```
 
-or:
+The goal is not to build a replacement for TCP.
 
-```python
-socket.recvfrom()
-```
-
-The interesting part was asking:
-
-> What happens if this packet disappears?
-
-Then:
-
-> What happens if the ACK disappears?
-
-Then:
-
-> What happens if the same packet arrives twice?
-
-Then:
-
-> What happens if packets arrive out of order?
-
-Those questions lead directly to the mechanisms used by reliable transport protocols.
+The goal is to understand **why reliable transport protocols need these mechanisms in the first place.**
 
 ---
 
 # Related Concepts
 
-This project also helped connect several Computer Networks concepts together:
+This project connects to several broader networking topics:
 
-- UDP
-- TCP
-- Transport-layer reliability
-- Sequence numbers
-- Acknowledgements
-- Retransmission
-- Timeouts
-- Packet loss
-- Duplicate packets
-- Out-of-order delivery
-- Sliding windows
-- Flow control
-- Congestion control
-- QUIC
-- HTTP/3
+* UDP
+* TCP
+* Reliable Data Transfer
+* Sequence Numbers
+* Acknowledgements
+* Retransmission
+* Timeouts
+* Packet Loss
+* Duplicate Detection
+* Out-of-Order Delivery
+* Stop-and-Wait Protocol
+* Sliding Windows
+* Flow Control
+* Congestion Control
+* QUIC
+* HTTP/3
 
 ---
 
-# Resources
+# References
 
-- [RFC 768 — User Datagram Protocol](https://www.rfc-editor.org/rfc/rfc768)
-- [RFC 9293 — Transmission Control Protocol](https://www.rfc-editor.org/rfc/rfc9293)
-- [RFC 9000 — QUIC: A UDP-Based Multiplexed and Secure Transport](https://www.rfc-editor.org/rfc/rfc9000)
-- [RFC 9114 — HTTP/3](https://www.rfc-editor.org/rfc/rfc9114)
+* [RFC 768 — User Datagram Protocol](https://www.rfc-editor.org/rfc/rfc768)
+* [RFC 9293 — Transmission Control Protocol](https://www.rfc-editor.org/rfc/rfc9293)
+* [RFC 9000 — QUIC](https://www.rfc-editor.org/rfc/rfc9000)
+* [RFC 9114 — HTTP/3](https://www.rfc-editor.org/rfc/rfc9114)
 
 ---
 
 # Disclaimer
 
-This is an **educational networking project** created to understand basic reliability mechanisms over UDP.
+This is an **educational networking project** created to explore basic reliability mechanisms over UDP.
 
 It is not intended to replace TCP, QUIC, or any production transport protocol.
 
@@ -716,4 +766,10 @@ It is not intended to replace TCP, QUIC, or any production transport protocol.
 
 **Akash Santra**
 
-Built as part of my hands-on exploration of Computer Networks and transport-layer protocols.
+Built as part of my hands-on exploration of **Computer Networks and transport-layer protocols**.
+
+---
+
+<p align="center">
+  <sub>Built with Python sockets · Educational project · Computer Networks</sub>
+</p>
