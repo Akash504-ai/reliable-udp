@@ -11,7 +11,7 @@
   </a>
   <img alt="Python" src="https://img.shields.io/badge/Python-3.x-blue?style=flat-square&logo=python&logoColor=white" />
   <img alt="Protocol" src="https://img.shields.io/badge/Protocol-UDP-orange?style=flat-square" />
-  <img alt="License" src="https://img.shields.io/badge/License-MIT-green?style=flat-square" />
+  <!-- <img alt="License" src="https://img.shields.io/badge/License-MIT-green?style=flat-square" /> -->
 </p>
 
 # Reliable UDP
